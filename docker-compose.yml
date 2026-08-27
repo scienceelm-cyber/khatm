@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: khatm
+      POSTGRES_USER: khatm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - khatm_pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U khatm -d khatm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://khatm:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/khatm
+      DATABASE_SSL: "false"
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set ADMIN_TOKEN in .env}
+      CLAIM_TTL_MINUTES: ${CLAIM_TTL_MINUTES:-45}
+      QURAN_API_BASE: ${QURAN_API_BASE:-https://api.alquran.cloud/v1}
+      QURAN_ARABIC_EDITION: ${QURAN_ARABIC_EDITION:-quran-uthmani-quran-academy}
+      QURAN_PERSIAN_EDITION: ${QURAN_PERSIAN_EDITION:-fa.makarem}
+      QURAN_AUDIO_EDITION: ${QURAN_AUDIO_EDITION:-ar.alafasy}
+      QURAN_AUDIO_BITRATE: ${QURAN_AUDIO_BITRATE:-128}
+    ports:
+      - "3000:3000"
+
+volumes:
+  khatm_pgdata:
