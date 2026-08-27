@@ -110,13 +110,14 @@ npm run dev
 GitHub Actions در هر push/PR این مراحل را اجرا می‌کند:
 
 1. `npm install`
-2. `npm run typecheck`
-3. `npm run build`
-4. راه‌اندازی PostgreSQL واقعی
-5. اجرای schema
-6. اجرای Quran API mock قطعی و محلی
-7. اجرای برنامه production
-8. smoke test API شامل:
+2. `npm audit --omit=dev --audit-level=high`
+3. `npm run typecheck`
+4. `npm run build`
+5. راه‌اندازی PostgreSQL واقعی
+6. اجرای schema
+7. اجرای Quran API mock قطعی و محلی
+8. اجرای برنامه production
+9. smoke test API شامل:
    - health
    - تخصیص آیه ۱
    - حفظ همان claim با session یکسان
@@ -140,4 +141,4 @@ GitHub Actions در هر push/PR این مراحل را اجرا می‌کند:
 
 ## نسخه
 
-`v1.1.0` — hardened initial production candidate.
+`v1.1.0` — hardened production candidate with CI, dependency audit, Dependabot and CodeQL.

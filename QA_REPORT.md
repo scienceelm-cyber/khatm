@@ -13,6 +13,9 @@
 - خطاهای شبکه و UI موبایل/RTL
 - Docker/Compose و bootstrap دیتابیس
 - GitHub Actions
+- production dependency audit
+- CodeQL static security analysis workflow
+- Dependabot configuration
 - endpoint سلامت
 - وابستگی runtime محتوای قرآن و صوت
 
@@ -30,7 +33,7 @@
 
 ## CI smoke coverage
 
-CI با PostgreSQL واقعی و Quran API mock محلی تست می‌کند:
+CI با PostgreSQL واقعی و Quran API mock محلی تست می‌کند و پیش از build، production dependency audit با سطح high اجرا می‌شود:
 
 - health 200
 - first claim = ayah 1
