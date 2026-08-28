@@ -15,57 +15,15 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: khatm
-          POSTGRES_USER: khatm
-          POSTGRES_PASSWORD: khatm-ci-password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U khatm -d khatm"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
     env:
       NEXT_TELEMETRY_DISABLED: "1"
-      DATABASE_URL: postgresql://khatm:khatm-ci-password@127.0.0.1:5432/khatm
-      ADMIN_TOKEN: ci-admin-secret-token-1234567890
-      CLAIM_TTL_MINUTES: "10"
-      QURAN_API_BASE: http://127.0.0.1:4010/v1
-      QURAN_ARABIC_EDITION: quran-uthmani-quran-academy
-      QURAN_PERSIAN_EDITION: fa.makarem
-      QURAN_AUDIO_EDITION: ar.alafasy
-      QURAN_AUDIO_BITRATE: "128"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+          cache: npm
+      - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
-      - run: npm run typecheck
-      - run: npm run build
-      - run: npm run db:init
-      - name: Start deterministic test services
-        run: |
-          node scripts/mock-quran.mjs > /tmp/mock-quran.log 2>&1 &
-          npm run start > /tmp/khatm.log 2>&1 &
-          for i in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "App did not become healthy"
-          exit 1
-      - run: npm run test:smoke
-      - name: Print service logs on failure
-        if: failure()
-        run: |
-          echo "--- khatm.log ---"
-          cat /tmp/khatm.log 2>/dev/null || true
-          echo "--- mock-quran.log ---"
-          cat /tmp/mock-quran.log 2>/dev/null || true
+      - run: npm run lint
+      - run: npm test

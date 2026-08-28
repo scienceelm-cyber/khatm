@@ -1,10 +1,27 @@
-export type KhatmStats = {
-  intention: string;
-  currentCycle: number;
-  completedKhatms: number;
-  completedAyahs: number;
-  activeReaders: number;
-  progressPercent: number;
+export type IntentionOverview = {
+  id: string;
+  title: string;
+  subtitle: string;
+  salawatTarget: number;
+  quran: {
+    cycle: number;
+    completedKhatms: number;
+    completedAyahs: number;
+    activeReaders: number;
+    progressPercent: number;
+  };
+  salawat: {
+    cycle: number;
+    current: number;
+    target: number;
+    completedKhatms: number;
+    progressPercent: number;
+  };
+};
+
+export type SiteState = {
+  intentions: IntentionOverview[];
+  updatedAt: string;
 };
 
 export type AyahContent = {
@@ -20,9 +37,8 @@ export type AyahContent = {
   audioUrl: string;
 };
 
-export type ClaimPayload = {
+export type QuranClaim = {
   claimId: string;
   expiresAt: string;
   ayah: AyahContent;
-  stats: KhatmStats;
 };

@@ -2,15 +2,15 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ختم گروهی قرآن",
-    short_name: "ختم قرآن",
-    description: "هر آیه، یک سهم از یک نیت مشترک",
+    name: "ختم جمعی قرآن و صلوات",
+    short_name: "ختم جمعی",
+    description: "هر آیه و هر صلوات، سهمی کوچک در یک نیت مشترک",
     start_url: "/",
     display: "standalone",
-    background_color: "#f7f2e8",
+    background_color: "#f6f0e4",
     theme_color: "#123f35",
     lang: "fa",
     dir: "rtl",
-    icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }]
+    icons: [{ src: "/favicon.svg", sizes: "any", type: "image/svg+xml" }],
   };
 }

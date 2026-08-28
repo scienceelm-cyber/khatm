@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
+import { getDatabase } from "@/lib/database";
+import { json } from "@/lib/http";
 
 export async function GET() {
   try {
-    await pool.query("SELECT 1");
-    return NextResponse.json({ ok: true });
+    await getDatabase().prepare("SELECT 1 AS ok").first();
+    return json({ ok: true });
   } catch {
-    return NextResponse.json({ ok: false }, { status: 503 });
+    return json({ ok: false }, { status: 503 });
   }
 }
