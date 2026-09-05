@@ -8,6 +8,20 @@
       "when": 1787946695425,
       "tag": "0000_rainy_ulik",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788630952619,
+      "tag": "0001_open_arachne",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788631143871,
+      "tag": "0002_friendly_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

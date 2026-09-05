@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BookOpenText,
   Check,
@@ -31,8 +31,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
+import type { DevotionDefinition, DevotionGuidance } from "@/lib/devotions";
 
-type Mode = "quran" | "salawat";
+type Mode = "quran" | "salawat" | "devotions";
 type QuranStatus = "idle" | "loading" | "reading" | "success" | "waiting" | "expired" | "error";
 type IntentionDraft = { title: string; subtitle: string; salawatTarget: number };
 
@@ -65,13 +66,19 @@ export default function KhatmApp() {
   const [salawatAmount, setSalawatAmount] = useState(1);
   const [salawatBusy, setSalawatBusy] = useState(false);
   const [salawatCelebration, setSalawatCelebration] = useState(false);
+  const [selectedDevotionId, setSelectedDevotionId] = useState("ayat-kursi");
+  const [devotionBusy, setDevotionBusy] = useState(false);
+  const [devotionCelebration, setDevotionCelebration] = useState(false);
+  const [devotionContent, setDevotionContent] = useState<{
+    catalog: readonly DevotionDefinition[];
+    guidance: readonly DevotionGuidance[];
+  } | null>(null);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminToken, setAdminToken] = useState("");
   const [adminBusy, setAdminBusy] = useState("");
   const [drafts, setDrafts] = useState<Record<string, IntentionDraft>>({});
   const [newIntention, setNewIntention] = useState<IntentionDraft>({ title: "", subtitle: "", salawatTarget: 14000 });
-  const autoClaimedRef = useRef("");
 
   const current = useMemo(
     () => siteState?.intentions.find((item) => item.id === selectedId) ?? siteState?.intentions[0] ?? null,
@@ -102,6 +109,15 @@ export default function KhatmApp() {
       window.removeEventListener("offline", onOffline);
     };
   }, [loadState]);
+
+  useEffect(() => {
+    if (mode !== "devotions" || devotionContent) return;
+    let active = true;
+    void import("@/lib/devotions").then(({ DEVOTIONS, DECEASED_GUIDANCE }) => {
+      if (active) setDevotionContent({ catalog: DEVOTIONS, guidance: DECEASED_GUIDANCE });
+    });
+    return () => { active = false; };
+  }, [devotionContent, mode]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -139,12 +155,6 @@ export default function KhatmApp() {
       setQuranBusy(false);
     }
   }, [quranBusy, selectedId]);
-
-  useEffect(() => {
-    if (mode !== "quran" || !selectedId || autoClaimedRef.current === selectedId) return;
-    autoClaimedRef.current = selectedId;
-    void claimAyah();
-  }, [claimAyah, mode, selectedId]);
 
   useEffect(() => {
     if (!claim || quranStatus !== "reading") {
@@ -215,8 +225,31 @@ export default function KhatmApp() {
     }
   };
 
+  const contributeDevotion = async () => {
+    if (!selectedId || devotionBusy) return;
+    setDevotionBusy(true);
+    setDevotionCelebration(false);
+    try {
+      const response = await fetch("/api/devotions/contribute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intentionId: selectedId, devotionId: selectedDevotionId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "devotion_failed");
+      setSiteState(data.state as SiteState);
+      setDevotionCelebration(Boolean(data.completedCycle));
+      toast.success(data.completedCycle ? "این دور کامل شد؛ قبول باشد." : "قرائت شما ثبت شد؛ قبول باشد.");
+    } catch {
+      toast.error("ثبت قرائت انجام نشد؛ دوباره تلاش کنید.");
+    } finally {
+      setDevotionBusy(false);
+    }
+  };
+
   const share = async () => {
-    const text = `${mode === "quran" ? "ختم جمعی قرآن" : "ختم جمعی صلوات"}${current ? ` — ${current.title}` : ""}`;
+    const labels: Record<Mode, string> = { quran: "ختم جمعی قرآن", salawat: "ختم جمعی صلوات", devotions: "هدیه‌های معنوی جمعی" };
+    const text = `${labels[mode]}${current ? ` — ${current.title}` : ""}`;
     if (navigator.share) {
       await navigator.share({ title: "ختم جمعی", text, url: location.href }).catch(() => undefined);
       return;
@@ -231,7 +264,7 @@ export default function KhatmApp() {
     setQuranStatus("idle");
     setQuranCelebration(false);
     setSalawatCelebration(false);
-    autoClaimedRef.current = "";
+    setDevotionCelebration(false);
   };
 
   const openAdmin = () => {
@@ -288,7 +321,7 @@ export default function KhatmApp() {
       <Toaster position="bottom-center" richColors closeButton />
 
       <header className="topbar">
-        <div className="brand" aria-label="ختم جمعی قرآن و صلوات">
+        <div className="brand" aria-label="ختم جمعی قرآن، صلوات و هدیه‌های معنوی">
           <span className="brand-mark" aria-hidden="true">۞</span>
           <div><strong>ختم جمعی</strong><small>هر سهم کوچک، برای یک نیت بزرگ</small></div>
         </div>
@@ -320,6 +353,7 @@ export default function KhatmApp() {
         <TabsList className="mode-tabs" aria-label="انتخاب نوع ختم">
           <TabsTrigger value="quran"><BookOpenText /> ختم قرآن</TabsTrigger>
           <TabsTrigger value="salawat"><Sparkles /> ختم صلوات</TabsTrigger>
+          <TabsTrigger value="devotions"><HeartHandshake /> هدیه معنوی</TabsTrigger>
         </TabsList>
 
         <TabsContent value="quran" className="tab-content">
@@ -340,7 +374,7 @@ export default function KhatmApp() {
             remainingSeconds={remainingSeconds}
             onComplete={() => void completeAyah()}
             onRetry={() => void claimAyah()}
-            onNext={() => { autoClaimedRef.current = selectedId; void claimAyah(); }}
+            onNext={() => void claimAyah()}
             onShare={() => void share()}
           />
         </TabsContent>
@@ -375,18 +409,31 @@ export default function KhatmApp() {
             <p className="privacy-note">بدون نیاز به نام یا ثبت‌نام؛ فقط شمارنده جمعی به‌روزرسانی می‌شود.</p>
           </section>
         </TabsContent>
+
+        <TabsContent value="devotions" className="tab-content">
+          <DevotionsSection
+            intention={current}
+            catalog={devotionContent?.catalog ?? []}
+            guidance={devotionContent?.guidance ?? []}
+            selectedId={selectedDevotionId}
+            busy={devotionBusy}
+            celebration={devotionCelebration}
+            onSelect={(id) => { setSelectedDevotionId(id); setDevotionCelebration(false); }}
+            onContribute={() => void contributeDevotion()}
+          />
+        </TabsContent>
       </Tabs>
 
       <section className="simple-steps" aria-labelledby="steps-title">
         <div><span className="eyebrow">ساده و جمعی</span><h2 id="steps-title">چطور همراه شوم؟</h2></div>
         <div className="steps-grid">
           <article><b>۱</b><div><strong>نیت را انتخاب کنید</strong><p>هر نیت، شمارنده و ختم‌های مستقل خودش را دارد.</p></div></article>
-          <article><b>۲</b><div><strong>قرآن یا صلوات</strong><p>ختم قرآن به‌صورت پیش‌فرض باز می‌شود؛ ختم صلوات هم کنار آن است.</p></div></article>
-          <article><b>۳</b><div><strong>سهمتان را ثبت کنید</strong><p>با ثبت هر آیه یا صلوات، پیشرفت همه همراهان جلو می‌رود.</p></div></article>
+          <article><b>۲</b><div><strong>عمل را انتخاب کنید</strong><p>قرآن پیش‌فرض است؛ صلوات و هدیه‌های معنوی هم در دسترس‌اند.</p></div></article>
+          <article><b>۳</b><div><strong>سهمتان را ثبت کنید</strong><p>پس از خواندن، دکمه ثبت را بزنید تا شمارنده مشترک جلو برود.</p></div></article>
         </div>
       </section>
 
-      <footer><span>ختم جمعی، بدون نمایش نام افراد</span><span>متن، ترجمه و صوت قرآن از منابع آنلاین عمومی دریافت می‌شود.</span></footer>
+      <footer><span>بدون ثبت‌نام و نمایش نام افراد؛ همه شمارنده‌ها بین وب و اپ مشترک‌اند.</span><span>عدد هدف هدیه‌های معنوی فقط برای هماهنگی جمعی است و ادعای فضیلت عددی ویژه نیست.</span></footer>
 
       <AdminDialog
         open={adminOpen}
@@ -441,9 +488,10 @@ function QuranReader({ status, claim, busy, celebration, remainingSeconds, onCom
   onNext: () => void;
   onShare: () => void;
 }) {
-  if (status === "loading" || status === "idle") {
+  if (status === "loading") {
     return <section className="reader-card reader-loading" aria-busy="true"><Skeleton className="h-7 w-44" /><Skeleton className="mt-8 h-24 w-full" /><Skeleton className="mt-5 h-16 w-4/5" /><Skeleton className="mt-8 h-12 w-full" /></section>;
   }
+  if (status === "idle") return <ReaderEmpty icon={<BookOpenText />} title="آماده‌اید یک آیه بخوانید؟" text="با زدن دکمه، نخستین آیه آزاد به‌ترتیب برای ۴۵ دقیقه به شما سپرده می‌شود؛ تا پیش از آن هیچ سهمی رزرو نمی‌شود." action="دریافت آیه من" onAction={onRetry} />;
   if (status === "error") return <ReaderEmpty icon={<BookOpenText />} title="آیه دریافت نشد" text="اتصال اینترنت یا منبع متن قرآن را بررسی کنید و دوباره تلاش کنید." action="دوباره تلاش می‌کنم" onAction={onRetry} />;
   if (status === "waiting") return <ReaderEmpty icon={<Clock3 />} title="آیات باقی‌مانده در حال خواندن‌اند" text="به محض آزاد شدن یک سهم، می‌توانید ادامه دهید." action="بررسی دوباره" onAction={onRetry} />;
   if (status === "expired") return <ReaderEmpty icon={<Clock3 />} title="زمان این سهم تمام شد" text="برای اینکه آیه‌ای جا نماند، این سهم دوباره به صف جمعی برگشته است." action="یک آیه تازه می‌گیرم" onAction={onRetry} />;
@@ -482,6 +530,109 @@ function ReaderEmpty({ icon, title, text, action, onAction }: { icon: React.Reac
     <section className="reader-card">
       <Empty className="border-0 py-8"><EmptyHeader><EmptyMedia variant="icon">{icon}</EmptyMedia><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{text}</EmptyDescription></EmptyHeader><EmptyContent><Button size="lg" className="main-action" onClick={onAction}>{action}</Button></EmptyContent></Empty>
     </section>
+  );
+}
+
+function DevotionsSection({ intention, catalog, guidance, selectedId, busy, celebration, onSelect, onContribute }: {
+  intention: IntentionOverview;
+  catalog: readonly DevotionDefinition[];
+  guidance: readonly DevotionGuidance[];
+  selectedId: string;
+  busy: boolean;
+  celebration: boolean;
+  onSelect: (id: string) => void;
+  onContribute: () => void;
+}) {
+  const devotion = catalog.find((item) => item.id === selectedId) ?? catalog[0];
+  if (!devotion) {
+    return <section className="reader-card reader-loading" aria-busy="true"><Spinner /><p>متن‌های معتبر در حال آماده‌سازی است…</p></section>;
+  }
+  const progress = intention.devotions.find((item) => item.id === devotion.id);
+  if (!progress) return null;
+
+  return (
+    <>
+      <nav className="devotion-picker" aria-label="انتخاب هدیه معنوی">
+        {catalog.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={item.id === devotion.id ? "is-active" : ""}
+            aria-pressed={item.id === devotion.id}
+            onClick={() => onSelect(item.id)}
+          >
+            <span>{item.shortTitle}</span>
+            <small>{item.id === "ziyarat-ashura" ? "متن کامل" : "قرائت کوتاه"}</small>
+          </button>
+        ))}
+      </nav>
+
+      <ProgressBlock
+        label={`دور ${fa.format(progress.cycle)} — ${devotion.title}`}
+        value={progress.progressPercent}
+        detail={`${fa.format(progress.current)} از ${fa.format(progress.target)} ${devotion.unitLabel}`}
+        stats={[
+          { label: "دورهای کامل", value: fa.format(progress.completedCycles), icon: <Check /> },
+          { label: "باقی‌مانده", value: fa.format(Math.max(0, progress.target - progress.current)), icon: <HeartHandshake /> },
+        ]}
+      />
+
+      <section className="devotion-card" aria-labelledby="devotion-title">
+        {celebration && <div className="celebration-note"><Sparkles /> این دور کامل شد؛ قبول باشد.</div>}
+        <span className="reader-kicker">برای قرائت و اهدای ثواب</span>
+        <h2 id="devotion-title">{devotion.title}</h2>
+        <p className="devotion-description">{devotion.description}</p>
+        <div className="evidence-note">
+          <strong>یادآوری دقیق</strong>
+          <p>{devotion.evidenceNote}</p>
+        </div>
+
+        <div className="devotion-texts">
+          {devotion.blocks.map((block, index) => {
+            const content = (
+              <>
+                {block.repeat && <Badge variant="secondary">این فراز {fa.format(block.repeat)} مرتبه</Badge>}
+                <p className="devotion-arabic" lang="ar">{block.arabic}</p>
+                <p className="devotion-meaning"><strong>معنای روان:</strong> {block.meaning}</p>
+              </>
+            );
+            if (devotion.blocks.length === 1) return <article className="devotion-block" key={block.heading ?? index}>{content}</article>;
+            return (
+              <details className="devotion-block devotion-details" key={block.heading ?? index} open={index === 0}>
+                <summary>{block.heading ?? `بخش ${fa.format(index + 1)}`}</summary>
+                <div>{content}</div>
+              </details>
+            );
+          })}
+        </div>
+
+        <a className="source-link" href={devotion.sourceUrl} target="_blank" rel="noreferrer">
+          منبع متن: {devotion.sourceLabel} <span aria-hidden="true">↗</span>
+        </a>
+        <Button size="lg" className="main-action" onClick={onContribute} disabled={busy}>
+          {busy ? <><Spinner /> در حال ثبت…</> : <><Check /> خواندم؛ ثبت یک {devotion.unitLabel}</>}
+        </Button>
+        <p className="privacy-note">ثبت فقط شمارنده مشترک این نیت را به‌روزرسانی می‌کند و هیچ اطلاعات شخصی دریافت نمی‌شود.</p>
+      </section>
+
+      <section className="guidance-section" aria-labelledby="guidance-title">
+        <div className="guidance-heading">
+          <span className="eyebrow">با منبع روشن</span>
+          <h2 id="guidance-title">چه کارهایی برای درگذشته بهتر است؟</h2>
+          <p>پیشنهادهای زیر بر قرآن و فتاوای رسمی تکیه دارند؛ برای جزئیات هر مورد، منبع اصلی را باز کنید.</p>
+        </div>
+        <div className="guidance-grid">
+          {guidance.map((item) => (
+            <article key={item.title}>
+              <span aria-hidden="true">✦</span>
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+              <a href={item.sourceUrl} target="_blank" rel="noreferrer">مشاهده منبع رسمی ↗</a>
+            </article>
+          ))}
+        </div>
+      </section>
+    </>
   );
 }
 

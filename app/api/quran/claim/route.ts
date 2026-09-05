@@ -40,21 +40,28 @@ export async function POST(request: Request) {
     for (let attempt = 0; !claim && attempt < 4; attempt += 1) {
       const next = await database
         .prepare(
-          `WITH RECURSIVE numbers(value) AS (
-             SELECT 1
+          `SELECT ayah_number
+           FROM (
+             SELECT MIN(expired.ayah_number) AS ayah_number
+             FROM quran_claims expired
+             WHERE expired.intention_id = ? AND expired.cycle = ? AND expired.status = 'expired'
+               AND NOT EXISTS (
+                 SELECT 1 FROM quran_claims live
+                 WHERE live.intention_id = expired.intention_id
+                   AND live.cycle = expired.cycle
+                   AND live.ayah_number = expired.ayah_number
+                   AND live.status IN ('assigned', 'completed')
+               )
              UNION ALL
-             SELECT value + 1 FROM numbers WHERE value < ?
+             SELECT COALESCE(MAX(CASE WHEN status IN ('assigned', 'completed') THEN ayah_number END), 0) + 1
+             FROM quran_claims
+             WHERE intention_id = ? AND cycle = ?
            )
-           SELECT value AS ayah_number
-           FROM numbers
-           WHERE NOT EXISTS (
-             SELECT 1 FROM quran_claims c
-             WHERE c.intention_id = ? AND c.cycle = ? AND c.ayah_number = value
-               AND c.status IN ('assigned', 'completed')
-           )
-           ORDER BY value ASC LIMIT 1`,
+           WHERE ayah_number BETWEEN 1 AND ?
+           ORDER BY ayah_number ASC
+           LIMIT 1`,
         )
-        .bind(TOTAL_AYAHS, intention.id, intention.quran_cycle)
+        .bind(intention.id, intention.quran_cycle, intention.id, intention.quran_cycle, TOTAL_AYAHS)
         .first<{ ayah_number: number }>();
 
       if (!next) {

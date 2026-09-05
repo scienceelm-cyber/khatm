@@ -3,6 +3,7 @@ package com.imangpt.khatm.ui
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -111,6 +112,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.imangpt.khatm.data.AdminIntentionInput
+import com.imangpt.khatm.data.DevotionCatalog
 import com.imangpt.khatm.data.IntentionOverview
 import com.imangpt.khatm.data.KhatmRepository
 import com.imangpt.khatm.data.KhatmSection
@@ -135,6 +137,13 @@ fun KhatmApp(viewModel: KhatmViewModel = viewModel()) {
         state.message?.let {
             snackbar.showSnackbar(it.text)
             viewModel.dismissMessage(it.id)
+        }
+    }
+
+    LaunchedEffect(viewModel) {
+        while (true) {
+            delay(60_000)
+            viewModel.refresh(false)
         }
     }
 
@@ -169,7 +178,7 @@ fun KhatmApp(viewModel: KhatmViewModel = viewModel()) {
                             isWorking = state.isWorking,
                             onRefresh = { viewModel.refresh() },
                             onShare = {
-                                val text = "در ختم جمعی قرآن و صلوات همراه شو\n${state.selectedIntention?.title.orEmpty()}\n${KhatmRepository.BASE_URL}"
+                                val text = "در ختم جمعی قرآن، صلوات و هدیه‌های معنوی همراه شو\n${state.selectedIntention?.title.orEmpty()}\n${KhatmRepository.BASE_URL}"
                                 context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
                                     putExtra(Intent.EXTRA_TEXT, text)
@@ -201,6 +210,14 @@ fun KhatmApp(viewModel: KhatmViewModel = viewModel()) {
                                     viewModel::setSalawatDraft,
                                     viewModel::addOneSalawat,
                                     viewModel::contributeSalawat,
+                                )
+                                KhatmSection.DEVOTIONS -> DevotionsSection(
+                                    state.selectedIntention,
+                                    state.devotionCatalog,
+                                    state.selectedDevotionId,
+                                    state.isWorking,
+                                    viewModel::selectDevotion,
+                                    viewModel::contributeDevotion,
                                 )
                             }
                         }
@@ -257,7 +274,7 @@ private fun AppHeader(isOnline: Boolean, isWorking: Boolean, onRefresh: () -> Un
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("ختم جمعی", style = MaterialTheme.typography.titleLarge)
-                Text("هر آیه و هر صلوات، سهمی از یک نور جمعی", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("هر سهم کوچک، برای یک نیت بزرگ", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onRefresh, enabled = !isWorking) { Icon(Icons.Default.Refresh, "به‌روزرسانی") }
             IconButton(onShare) { Icon(Icons.Default.Share, "اشتراک‌گذاری") }
@@ -306,8 +323,9 @@ private fun IntentionSelector(intention: IntentionOverview?, onClick: () -> Unit
 private fun SectionSwitcher(selected: KhatmSection, onSelect: (KhatmSection) -> Unit) {
     Surface(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)) {
         Row(Modifier.padding(5.dp)) {
-            SectionButton("ختم قرآن", Icons.Default.AutoStories, selected == KhatmSection.QURAN, Modifier.weight(1f)) { onSelect(KhatmSection.QURAN) }
-            SectionButton("ختم صلوات", Icons.Default.Favorite, selected == KhatmSection.SALAWAT, Modifier.weight(1f)) { onSelect(KhatmSection.SALAWAT) }
+            SectionButton("قرآن", Icons.Default.AutoStories, selected == KhatmSection.QURAN, Modifier.weight(1f)) { onSelect(KhatmSection.QURAN) }
+            SectionButton("صلوات", Icons.Default.Favorite, selected == KhatmSection.SALAWAT, Modifier.weight(1f)) { onSelect(KhatmSection.SALAWAT) }
+            SectionButton("هدیه‌ها", Icons.Default.Verified, selected == KhatmSection.DEVOTIONS, Modifier.weight(1f)) { onSelect(KhatmSection.DEVOTIONS) }
         }
     }
 }
@@ -322,8 +340,8 @@ private fun SectionButton(title: String, icon: androidx.compose.ui.graphics.vect
         contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         shadowElevation = if (selected) 3.dp else 0.dp,
     ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 13.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text(title, style = MaterialTheme.typography.labelLarge)
+        Column(Modifier.padding(horizontal = 5.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null, Modifier.size(19.dp)); Spacer(Modifier.height(3.dp)); Text(title, style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -614,6 +632,137 @@ private fun SalawatSection(
 }
 
 @Composable
+private fun DevotionsSection(
+    intention: IntentionOverview?,
+    catalog: DevotionCatalog?,
+    selectedId: String,
+    isWorking: Boolean,
+    onSelect: (String) -> Unit,
+    onSubmit: () -> Unit,
+) {
+    if (intention == null) return EmptyState("نیتی برای هدیه‌های معنوی در دسترس نیست")
+    if (catalog == null || catalog.devotions.isEmpty()) return EmptyState("متن‌ها در حال همگام‌سازی است؛ دکمه به‌روزرسانی را بزنید")
+    val definition = catalog.devotions.firstOrNull { it.id == selectedId } ?: catalog.devotions.first()
+    val progress = intention.devotions.firstOrNull { it.id == definition.id }
+        ?: return EmptyState("شمارنده این بخش در حال آماده‌سازی است")
+    val context = LocalContext.current
+    var expandedIndex by rememberSaveable(definition.id) { mutableStateOf<Int?>(0) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
+            items(catalog.devotions, key = { it.id }) { item ->
+                val selected = item.id == definition.id
+                if (selected) {
+                    Button({ onSelect(item.id) }) { Text(item.shortTitle) }
+                } else {
+                    OutlinedButton({ onSelect(item.id) }) { Text(item.shortTitle) }
+                }
+            }
+        }
+
+        ProgressCard(
+            "دور ${progress.cycle.toPersianDigits()} — ${definition.shortTitle}",
+            "شمارنده این نیت با وب‌سایت مشترک است",
+            progress.progressPercent,
+            "${progress.current.formatFa()} از ${progress.target.formatFa()}",
+            definition.unitLabel,
+            progress.completedCycles.formatFa(),
+            "دور کامل‌شده",
+        )
+
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = .22f)),
+        ) {
+            Column(Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Icon(Icons.Default.Verified, null, Modifier.padding(11.dp).size(23.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(definition.title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                Text(definition.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(13.dp))
+                Surface(Modifier.fillMaxWidth(), RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .55f)) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("یادآوری دقیق", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text(definition.evidenceNote, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Spacer(Modifier.height(13.dp))
+
+                definition.blocks.forEachIndexed { index, block ->
+                    val expanded = definition.blocks.size == 1 || expandedIndex == index
+                    Card(
+                        onClick = { if (definition.blocks.size > 1) expandedIndex = if (expanded) null else index },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 9.dp).animateContentSize(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .48f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = .15f)),
+                    ) {
+                        Column(Modifier.padding(15.dp)) {
+                            if (definition.blocks.size > 1) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(block.heading.ifBlank { "بخش ${(index + 1).toPersianDigits()}" }, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Default.ExpandMore, if (expanded) "بستن متن" else "باز کردن متن")
+                                }
+                            }
+                            AnimatedVisibility(expanded) {
+                                Column {
+                                    block.repeat?.let {
+                                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+                                            Text("این فراز ${it.toPersianDigits()} مرتبه", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
+                                        }
+                                        Spacer(Modifier.height(9.dp))
+                                    }
+                                    Text(
+                                        block.arabic,
+                                        Modifier.fillMaxWidth(),
+                                        style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Serif, fontSize = 24.sp, lineHeight = 45.sp, textDirection = TextDirection.Rtl),
+                                        textAlign = TextAlign.Right,
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Text("معنای روان", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                    Text(block.meaning, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                TextButton(
+                    onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(definition.sourceUrl))) },
+                ) { Text("منبع متن: ${definition.sourceLabel} ↗", textAlign = TextAlign.Center) }
+                Spacer(Modifier.height(6.dp))
+                Button(onSubmit, enabled = !isWorking, modifier = Modifier.fillMaxWidth().height(54.dp)) {
+                    if (isWorking) CircularProgressIndicator(Modifier.size(21.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.5.dp)
+                    else Icon(Icons.Default.CheckCircle, null)
+                    Spacer(Modifier.width(9.dp)); Text(if (isWorking) "در حال ثبت…" else "خواندم؛ ثبت یک ${definition.unitLabel}")
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("هیچ نام یا اطلاعات شخصی ثبت نمی‌شود؛ فقط شمارنده جمعی جلو می‌رود.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            }
+        }
+
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .45f))) {
+            Column(Modifier.padding(18.dp)) {
+                Text("کارهای معتبر برای درگذشته", style = MaterialTheme.typography.titleLarge)
+                Text("خلاصه‌های زیر بر قرآن و منابع رسمی تکیه دارد؛ برای جزئیات، منبع را باز کنید.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                catalog.guidance.forEachIndexed { index, item ->
+                    if (index > 0) { Spacer(Modifier.height(8.dp)); HorizontalDivider(); Spacer(Modifier.height(8.dp)) }
+                    Text(item.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(item.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(
+                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.sourceUrl))) },
+                        contentPadding = PaddingValues(0.dp),
+                    ) { Text("${item.sourceLabel} ↗") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun CustomAmountDialog(current: Int, onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
     var value by remember(current) { mutableStateOf(current.toString()) }
     val parsed = value.toLocalizedIntOrNull()?.takeIf { it in 1..1_000 }
@@ -640,7 +789,7 @@ private fun IntentionSheet(intentions: List<IntentionOverview>, selectedId: Stri
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
             Text("انتخاب نیت", style = MaterialTheme.typography.headlineMedium)
-            Text("پیشرفت قرآن و صلوات برای هر نیت جداگانه نگه‌داری می‌شود.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("پیشرفت قرآن، صلوات و هدیه‌های معنوی برای هر نیت جدا نگه‌داری می‌شود.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
             intentions.forEach { intention ->
                 val selected = intention.id == selectedId

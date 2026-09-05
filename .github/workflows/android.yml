@@ -39,12 +39,18 @@ jobs:
             cp -a "$platform/android-37.0/." "$platform/"
           fi
       - uses: gradle/actions/setup-gradle@v4
-      - name: Test, lint and build APK
+      - name: Test, lint and build APKs
         working-directory: android
-        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
+        run: ./gradlew testDebugUnitTest lintRelease assembleDebug assembleRelease --no-daemon
+      - name: Prepare verified build outputs
+        run: |
+          mkdir -p android/.ci-artifacts
+          cp android/app/build/outputs/apk/debug/app-debug.apk android/.ci-artifacts/khatm-v2-debug.apk
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk android/.ci-artifacts/khatm-v2-release-unsigned.apk
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" android/.ci-artifacts/apksigner.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: khatm-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: khatm-android-v2-build
+          path: android/.ci-artifacts/*
           if-no-files-found: error
           retention-days: 14

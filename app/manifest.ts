@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ختم جمعی قرآن و صلوات",
+    name: "ختم جمعی قرآن، صلوات و هدیه‌های معنوی",
     short_name: "ختم جمعی",
-    description: "هر آیه و هر صلوات، سهمی کوچک در یک نیت مشترک",
+    description: "ختم قرآن، صلوات و هدیه‌های معنوی با نیت و شمارنده مشترک",
     start_url: "/",
     display: "standalone",
     background_color: "#f6f0e4",

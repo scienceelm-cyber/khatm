@@ -1,0 +1,1 @@
+CREATE INDEX `quran_claims_allocation_idx` ON `quran_claims` (`intention_id`,`cycle`,`status`,`ayah_number`);

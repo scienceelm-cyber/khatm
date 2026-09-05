@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.imangpt.khatm.data.AdminIntentionInput
 import com.imangpt.khatm.data.ApiException
 import com.imangpt.khatm.data.IntentionOverview
+import com.imangpt.khatm.data.DevotionCatalog
 import com.imangpt.khatm.data.KhatmRepository
 import com.imangpt.khatm.data.KhatmSection
 import com.imangpt.khatm.data.QuranClaim
@@ -25,6 +26,8 @@ data class KhatmUiState(
     val siteState: SiteState? = null,
     val selectedIntentionId: String? = null,
     val section: KhatmSection = KhatmSection.QURAN,
+    val devotionCatalog: DevotionCatalog? = null,
+    val selectedDevotionId: String = "ayat-kursi",
     val claim: QuranClaim? = null,
     val isLoading: Boolean = true,
     val isWorking: Boolean = false,
@@ -41,6 +44,7 @@ class KhatmViewModel(application: Application) : AndroidViewModel(application) {
     private val messageIds = AtomicLong(0)
     private var storedClaim = repository.cachedClaim()?.takeIf { it.claim.isActive() }
     private val cachedState = repository.cachedState()
+    private val cachedCatalog = repository.cachedCatalog()
     private val cachedSelectedId = repository.selectedIntentionId()
         ?.takeIf { id -> cachedState?.intentions?.any { it.id == id } == true }
         ?: cachedState?.intentions?.firstOrNull()?.id
@@ -50,6 +54,8 @@ class KhatmViewModel(application: Application) : AndroidViewModel(application) {
             siteState = cachedState,
             selectedIntentionId = cachedSelectedId,
             section = repository.selectedSection(),
+            devotionCatalog = cachedCatalog,
+            selectedDevotionId = repository.selectedDevotionId(),
             claim = storedClaim?.takeIf { it.intentionId == cachedSelectedId }?.claim,
             isLoading = cachedState == null,
             isOnline = cachedState == null,
@@ -63,12 +69,28 @@ class KhatmViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refresh(showSuccess: Boolean = true) {
+        if (_uiState.value.isWorking) return
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = it.siteState == null, isWorking = true) }
-            runCatching { repository.refreshState() }
-                .onSuccess { state ->
+            runCatching {
+                val state = repository.refreshState()
+                val catalog = if (repository.shouldRefreshCatalog()) {
+                    runCatching { repository.refreshCatalog() }.getOrNull()
+                } else null
+                state to catalog
+            }
+                .onSuccess { (state, catalog) ->
                     applyState(state)
-                    _uiState.update { it.copy(isLoading = false, isWorking = false, isOnline = true) }
+                    _uiState.update { it.copy(
+                        devotionCatalog = catalog ?: it.devotionCatalog,
+                        selectedDevotionId = (catalog ?: it.devotionCatalog)?.devotions
+                            ?.firstOrNull { devotion -> devotion.id == it.selectedDevotionId }?.id
+                            ?: (catalog ?: it.devotionCatalog)?.devotions?.firstOrNull()?.id
+                            ?: it.selectedDevotionId,
+                        isLoading = false,
+                        isWorking = false,
+                        isOnline = true,
+                    ) }
                     if (showSuccess) postMessage("اطلاعات به‌روز شد")
                 }
                 .onFailure { error ->
@@ -91,6 +113,12 @@ class KhatmViewModel(application: Application) : AndroidViewModel(application) {
     fun setSection(section: KhatmSection) {
         repository.setSelectedSection(section)
         _uiState.update { it.copy(section = section) }
+    }
+
+    fun selectDevotion(id: String) {
+        if (_uiState.value.devotionCatalog?.devotions?.any { it.id == id } != true) return
+        repository.setSelectedDevotionId(id)
+        _uiState.update { it.copy(selectedDevotionId = id) }
     }
 
     fun claimAyah() {
@@ -155,6 +183,23 @@ class KhatmViewModel(application: Application) : AndroidViewModel(application) {
                         if (result.completedKhatm) "ختم صلوات کامل شد؛ قبول باشد ✨"
                         else "${amount.toPersianDigits()} صلوات ثبت شد؛ قبول باشد",
                     )
+                }
+                .onFailure(::handleFailure)
+        }
+    }
+
+    fun contributeDevotion() {
+        val intentionId = _uiState.value.selectedIntentionId ?: return
+        val devotionId = _uiState.value.selectedDevotionId
+        val title = _uiState.value.devotionCatalog?.devotions?.firstOrNull { it.id == devotionId }?.shortTitle
+            ?: "قرائت"
+        viewModelScope.launch {
+            _uiState.update { it.copy(isWorking = true) }
+            runCatching { repository.contributeDevotion(intentionId, devotionId) }
+                .onSuccess { result ->
+                    applyState(result.state)
+                    _uiState.update { it.copy(isWorking = false, isOnline = true) }
+                    postMessage(if (result.completedCycle) "این دور $title کامل شد؛ قبول باشد ✨" else "$title ثبت شد؛ قبول باشد")
                 }
                 .onFailure(::handleFailure)
         }

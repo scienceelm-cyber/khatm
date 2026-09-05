@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ختم جمعی قرآن و صلوات",
-  description: "هر آیه و هر صلوات، سهمی کوچک در یک نیت مشترک.",
+  title: "ختم جمعی قرآن، صلوات و هدیه‌های معنوی",
+  description: "ختم قرآن، صلوات، آیت‌الکرسی و زیارت عاشورا با نیت و شمارنده مشترک.",
   applicationName: "ختم جمعی",
   robots: { index: true, follow: true },
   icons: {

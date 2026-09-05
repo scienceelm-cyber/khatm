@@ -1,3 +1,14 @@
+import type { DevotionId } from "@/lib/devotions";
+
+export type DevotionProgress = {
+  id: DevotionId;
+  cycle: number;
+  current: number;
+  target: number;
+  completedCycles: number;
+  progressPercent: number;
+};
+
 export type IntentionOverview = {
   id: string;
   title: string;
@@ -17,6 +28,7 @@ export type IntentionOverview = {
     completedKhatms: number;
     progressPercent: number;
   };
+  devotions: DevotionProgress[];
 };
 
 export type SiteState = {

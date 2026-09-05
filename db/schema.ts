@@ -46,6 +46,12 @@ export const quranClaims = sqliteTable(
       table.status,
     ),
     index("quran_claims_expiry_idx").on(table.status, table.expiresAt),
+    index("quran_claims_allocation_idx").on(
+      table.intentionId,
+      table.cycle,
+      table.status,
+      table.ayahNumber,
+    ),
   ],
 );
 
@@ -62,5 +68,28 @@ export const quranHistory = sqliteTable(
   },
   (table) => [
     uniqueIndex("quran_history_cycle_unique").on(table.intentionId, table.cycle),
+  ],
+);
+
+export const devotionalProgress = sqliteTable(
+  "devotional_progress",
+  {
+    id: text("id").primaryKey(),
+    intentionId: text("intention_id")
+      .notNull()
+      .references(() => intentions.id, { onDelete: "cascade" }),
+    devotionId: text("devotion_id").notNull(),
+    cycle: integer("cycle").notNull().default(1),
+    current: integer("current").notNull().default(0),
+    target: integer("target").notNull(),
+    completedCycles: integer("completed_cycles").notNull().default(0),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("devotional_progress_intention_devotion_unique").on(
+      table.intentionId,
+      table.devotionId,
+    ),
+    index("devotional_progress_intention_idx").on(table.intentionId),
   ],
 );

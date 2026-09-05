@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 const val TOTAL_QURAN_AYAHS = 6_236
 
-enum class KhatmSection { QURAN, SALAWAT }
+enum class KhatmSection { QURAN, SALAWAT, DEVOTIONS }
 
 data class QuranProgress(
     val cycle: Int,
@@ -23,6 +23,15 @@ data class SalawatProgress(
     val progressPercent: Double,
 )
 
+data class DevotionProgress(
+    val id: String,
+    val cycle: Int,
+    val current: Int,
+    val target: Int,
+    val completedCycles: Int,
+    val progressPercent: Double,
+)
+
 data class IntentionOverview(
     val id: String,
     val title: String,
@@ -30,6 +39,7 @@ data class IntentionOverview(
     val salawatTarget: Int,
     val quran: QuranProgress,
     val salawat: SalawatProgress,
+    val devotions: List<DevotionProgress>,
 )
 
 data class SiteState(val intentions: List<IntentionOverview>, val updatedAt: String)
@@ -51,7 +61,39 @@ data class QuranClaim(val claimId: String, val expiresAt: String, val ayah: Ayah
 data class StoredClaim(val intentionId: String, val claim: QuranClaim)
 data class ClaimResult(val claim: QuranClaim, val state: SiteState)
 data class MutationResult(val completedKhatm: Boolean, val state: SiteState)
+data class DevotionMutationResult(val completedCycle: Boolean, val state: SiteState)
 data class AdminIntentionInput(val title: String, val subtitle: String, val salawatTarget: Int)
+
+data class DevotionBlock(
+    val heading: String,
+    val arabic: String,
+    val meaning: String,
+    val repeat: Int?,
+)
+
+data class DevotionDefinition(
+    val id: String,
+    val title: String,
+    val shortTitle: String,
+    val description: String,
+    val unitLabel: String,
+    val sourceLabel: String,
+    val sourceUrl: String,
+    val evidenceNote: String,
+    val blocks: List<DevotionBlock>,
+)
+
+data class GuidanceItem(
+    val title: String,
+    val text: String,
+    val sourceLabel: String,
+    val sourceUrl: String,
+)
+
+data class DevotionCatalog(
+    val devotions: List<DevotionDefinition>,
+    val guidance: List<GuidanceItem>,
+)
 
 internal object KhatmJson {
     fun parseState(root: JSONObject): SiteState {
@@ -61,6 +103,22 @@ internal object KhatmJson {
                 val item = source.getJSONObject(index)
                 val quran = item.getJSONObject("quran")
                 val salawat = item.getJSONObject("salawat")
+                val devotionsSource = item.optJSONArray("devotions") ?: JSONArray()
+                val devotions = buildList {
+                    for (devotionIndex in 0 until devotionsSource.length()) {
+                        val devotion = devotionsSource.getJSONObject(devotionIndex)
+                        add(
+                            DevotionProgress(
+                                id = devotion.getString("id"),
+                                cycle = devotion.optInt("cycle", 1),
+                                current = devotion.optInt("current"),
+                                target = devotion.optInt("target", 1),
+                                completedCycles = devotion.optInt("completedCycles"),
+                                progressPercent = devotion.optDouble("progressPercent"),
+                            ),
+                        )
+                    }
+                }
                 add(
                     IntentionOverview(
                         id = item.getString("id"),
@@ -81,6 +139,7 @@ internal object KhatmJson {
                             completedKhatms = salawat.optInt("completedKhatms"),
                             progressPercent = salawat.optDouble("progressPercent"),
                         ),
+                        devotions = devotions,
                     ),
                 )
             }
@@ -130,6 +189,83 @@ internal object KhatmJson {
                     put("completedKhatms", intention.salawat.completedKhatms)
                     put("progressPercent", intention.salawat.progressPercent)
                 })
+                put("devotions", JSONArray().apply {
+                    intention.devotions.forEach { devotion -> put(JSONObject().apply {
+                        put("id", devotion.id)
+                        put("cycle", devotion.cycle)
+                        put("current", devotion.current)
+                        put("target", devotion.target)
+                        put("completedCycles", devotion.completedCycles)
+                        put("progressPercent", devotion.progressPercent)
+                    }) }
+                })
+            }) }
+        })
+    }
+
+    fun parseCatalog(root: JSONObject): DevotionCatalog {
+        val devotionSource = root.optJSONArray("devotions") ?: JSONArray()
+        val guidanceSource = root.optJSONArray("guidance") ?: JSONArray()
+        val devotions = buildList {
+            for (index in 0 until devotionSource.length()) {
+                val item = devotionSource.getJSONObject(index)
+                val blocksSource = item.optJSONArray("blocks") ?: JSONArray()
+                val blocks = buildList {
+                    for (blockIndex in 0 until blocksSource.length()) {
+                        val block = blocksSource.getJSONObject(blockIndex)
+                        add(
+                            DevotionBlock(
+                                heading = block.optString("heading"),
+                                arabic = block.getString("arabic"),
+                                meaning = block.getString("meaning"),
+                                repeat = block.optInt("repeat").takeIf { it > 0 },
+                            ),
+                        )
+                    }
+                }
+                add(
+                    DevotionDefinition(
+                        id = item.getString("id"),
+                        title = item.getString("title"),
+                        shortTitle = item.getString("shortTitle"),
+                        description = item.getString("description"),
+                        unitLabel = item.getString("unitLabel"),
+                        sourceLabel = item.getString("sourceLabel"),
+                        sourceUrl = item.getString("sourceUrl"),
+                        evidenceNote = item.getString("evidenceNote"),
+                        blocks = blocks,
+                    ),
+                )
+            }
+        }
+        val guidance = buildList {
+            for (index in 0 until guidanceSource.length()) {
+                val item = guidanceSource.getJSONObject(index)
+                add(GuidanceItem(item.getString("title"), item.getString("text"), item.getString("sourceLabel"), item.getString("sourceUrl")))
+            }
+        }
+        return DevotionCatalog(devotions, guidance)
+    }
+
+    fun catalogToJson(catalog: DevotionCatalog) = JSONObject().apply {
+        put("devotions", JSONArray().apply {
+            catalog.devotions.forEach { devotion -> put(JSONObject().apply {
+                put("id", devotion.id); put("title", devotion.title); put("shortTitle", devotion.shortTitle)
+                put("description", devotion.description); put("unitLabel", devotion.unitLabel)
+                put("sourceLabel", devotion.sourceLabel); put("sourceUrl", devotion.sourceUrl)
+                put("evidenceNote", devotion.evidenceNote)
+                put("blocks", JSONArray().apply {
+                    devotion.blocks.forEach { block -> put(JSONObject().apply {
+                        put("heading", block.heading); put("arabic", block.arabic); put("meaning", block.meaning)
+                        block.repeat?.let { put("repeat", it) }
+                    }) }
+                })
+            }) }
+        })
+        put("guidance", JSONArray().apply {
+            catalog.guidance.forEach { item -> put(JSONObject().apply {
+                put("title", item.title); put("text", item.text)
+                put("sourceLabel", item.sourceLabel); put("sourceUrl", item.sourceUrl)
             }) }
         })
     }

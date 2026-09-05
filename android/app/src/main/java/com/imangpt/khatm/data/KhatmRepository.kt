@@ -22,6 +22,10 @@ class KhatmRepository(context: Context) {
         KhatmJson.parseState(request("GET", "/api/state")).also(::saveState)
     }
 
+    suspend fun refreshCatalog(): DevotionCatalog = withContext(Dispatchers.IO) {
+        KhatmJson.parseCatalog(request("GET", "/api/devotions/catalog")).also(::saveCatalog)
+    }
+
     suspend fun claimAyah(intentionId: String): ClaimResult = withContext(Dispatchers.IO) {
         val root = request("POST", "/api/quran/claim", JSONObject().put("intentionId", intentionId))
         ClaimResult(
@@ -51,6 +55,16 @@ class KhatmRepository(context: Context) {
         }
     }
 
+    suspend fun contributeDevotion(intentionId: String, devotionId: String): DevotionMutationResult = withContext(Dispatchers.IO) {
+        val root = request(
+            "POST", "/api/devotions/contribute",
+            JSONObject().put("intentionId", intentionId).put("devotionId", devotionId),
+        )
+        DevotionMutationResult(root.optBoolean("completedCycle"), KhatmJson.parseState(root.getJSONObject("state"))).also {
+            saveState(it.state)
+        }
+    }
+
     suspend fun createIntention(token: String, input: AdminIntentionInput) = adminRequest(
         JSONObject().put("action", "create").put("token", token)
             .put("title", input.title).put("subtitle", input.subtitle)
@@ -75,6 +89,12 @@ class KhatmRepository(context: Context) {
         runCatching { KhatmJson.parseState(JSONObject(it)) }.getOrNull()
     }
 
+    fun cachedCatalog(): DevotionCatalog? = preferences.getString(KEY_CATALOG, null)?.let {
+        runCatching { KhatmJson.parseCatalog(JSONObject(it)) }.getOrNull()
+    }
+    fun shouldRefreshCatalog(): Boolean =
+        !preferences.contains(KEY_CATALOG) || System.currentTimeMillis() - preferences.getLong(KEY_CATALOG_UPDATED, 0L) > CATALOG_TTL_MS
+
     fun cachedClaim(): StoredClaim? = preferences.getString(KEY_CLAIM, null)?.let {
         runCatching {
             val root = JSONObject(it)
@@ -91,9 +111,18 @@ class KhatmRepository(context: Context) {
     fun setSelectedSection(section: KhatmSection) {
         preferences.edit { putString(KEY_SECTION, section.name) }
     }
+    fun selectedDevotionId(): String = preferences.getString(KEY_DEVOTION, "ayat-kursi") ?: "ayat-kursi"
+    fun setSelectedDevotionId(id: String) { preferences.edit { putString(KEY_DEVOTION, id) } }
 
     private fun saveState(state: SiteState) {
         preferences.edit { putString(KEY_STATE, KhatmJson.stateToJson(state).toString()) }
+    }
+
+    private fun saveCatalog(catalog: DevotionCatalog) {
+        preferences.edit {
+            putString(KEY_CATALOG, KhatmJson.catalogToJson(catalog).toString())
+            putLong(KEY_CATALOG_UPDATED, System.currentTimeMillis())
+        }
     }
 
     private fun saveClaim(stored: StoredClaim) {
@@ -109,8 +138,8 @@ class KhatmRepository(context: Context) {
     private fun request(method: String, path: String, payload: JSONObject? = null): JSONObject {
         val connection = (URL(BASE_URL + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
-            connectTimeout = 15_000
-            readTimeout = 25_000
+            connectTimeout = 10_000
+            readTimeout = 20_000
             useCaches = false
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "KhatmAndroid/${BuildConfig.VERSION_NAME}")
@@ -150,8 +179,12 @@ class KhatmRepository(context: Context) {
         const val BASE_URL = "https://khatm.imangpt1996.chatgpt.site"
         private const val KEY_COOKIE = "session_cookie"
         private const val KEY_STATE = "cached_state"
+        private const val KEY_CATALOG = "cached_devotion_catalog_v1"
+        private const val KEY_CATALOG_UPDATED = "cached_devotion_catalog_updated"
         private const val KEY_CLAIM = "cached_claim"
         private const val KEY_INTENTION = "selected_intention"
         private const val KEY_SECTION = "selected_section"
+        private const val KEY_DEVOTION = "selected_devotion"
+        private const val CATALOG_TTL_MS = 24L * 60L * 60L * 1_000L
     }
 }
