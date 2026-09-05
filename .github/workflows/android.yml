@@ -38,7 +38,7 @@ jobs:
           if [[ ! -f "$platform/android.jar" && -f "$platform/android-37.0/android.jar" ]]; then
             cp -a "$platform/android-37.0/." "$platform/"
           fi
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Test, lint and build APKs
         working-directory: android
         run: ./gradlew testDebugUnitTest lintRelease assembleDebug assembleRelease --no-daemon
