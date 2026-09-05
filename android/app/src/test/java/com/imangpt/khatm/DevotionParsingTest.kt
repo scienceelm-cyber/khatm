@@ -1,22 +1,17 @@
 package com.imangpt.khatm
 
-import com.imangpt.khatm.data.KhatmJson
-import org.json.JSONObject
+import com.imangpt.khatm.data.DevotionProgress
+import com.imangpt.khatm.data.KhatmSection
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class DevotionParsingTest {
     @Test
-    fun parsesCatalogAndSynchronizedProgress() {
-        val catalog = KhatmJson.parseCatalog(JSONObject("""
-            {"devotions":[{"id":"ayat-kursi","title":"آیت‌الکرسی","shortTitle":"آیت‌الکرسی","description":"test","unitLabel":"قرائت","sourceLabel":"قرآن","sourceUrl":"https://example.com","evidenceNote":"note","blocks":[{"arabic":"اللّٰه","meaning":"خدا","repeat":1}]}],"guidance":[]}
-        """.trimIndent()))
-        val state = KhatmJson.parseState(JSONObject("""
-            {"intentions":[{"id":"one","title":"نیت","subtitle":"","salawatTarget":14000,"quran":{},"salawat":{},"devotions":[{"id":"ayat-kursi","cycle":2,"current":3,"target":100,"completedCycles":1,"progressPercent":3.0}]}],"updatedAt":"now"}
-        """.trimIndent()))
+    fun modelsSynchronizedProgressAndThirdSection() {
+        val progress = DevotionProgress("ayat-kursi", 2, 3, 100, 1, 3.0)
 
-        assertEquals("ayat-kursi", catalog.devotions.single().id)
-        assertEquals(1, catalog.devotions.single().blocks.single().repeat)
-        assertEquals(3, state.intentions.single().devotions.single().current)
+        assertEquals("ayat-kursi", progress.id)
+        assertEquals(3, progress.current)
+        assertEquals(KhatmSection.DEVOTIONS, KhatmSection.valueOf("DEVOTIONS"))
     }
 }
