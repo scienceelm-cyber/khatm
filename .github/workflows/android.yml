@@ -47,12 +47,12 @@ jobs:
       - name: Prepare verified build outputs
         run: |
           mkdir -p android/ci-artifacts
-          cp android/app/build/outputs/apk/debug/app-debug.apk android/ci-artifacts/khatm-v2-debug.apk
-          cp android/app/build/outputs/apk/release/app-release-unsigned.apk android/ci-artifacts/khatm-v2-release-unsigned.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk android/ci-artifacts/khatm-v2.1.0-debug.apk
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk android/ci-artifacts/khatm-v2.1.0-release-unsigned.apk
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" android/ci-artifacts/apksigner.jar
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: khatm-android-v2-build
+          name: khatm-android-v2.1.0-build
           path: android/ci-artifacts/*
           if-no-files-found: error
           retention-days: 14

@@ -40,6 +40,12 @@ ADMIN_TOKEN=<a strong password of at least 20 characters>
 
 رمز در کد یا repository ذخیره نمی‌شود.
 
+## نصب روی حساب Cloudflare خودتان
+
+نسخهٔ ۲.۱ یک مسیر رسمی برای میزبانی مستقل دارد. راهنمای قدم‌به‌قدم فارسی را در
+[`SELF_HOSTING_FA.md`](./SELF_HOSTING_FA.md) بخوانید. پایگاه دادهٔ این پروژه Cloudflare D1 است؛
+بنابراین هاست اشتراکیِ صرفاً PHP/cPanel بدون Worker و D1 برای اجرای کامل آن کافی نیست.
+
 ## توسعه محلی
 
 ```bash

@@ -1,4 +1,27 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+
+val khatmLocalProperties = Properties()
+val khatmLocalPropertiesFile = rootProject.file("khatm.local.properties")
+if (khatmLocalPropertiesFile.isFile) {
+    khatmLocalPropertiesFile.inputStream().use(khatmLocalProperties::load)
+}
+
+val khatmBaseUrl = providers.gradleProperty("KHATM_BASE_URL")
+    .orElse(providers.environmentVariable("KHATM_BASE_URL"))
+    .orElse(
+        khatmLocalProperties.getProperty("KHATM_BASE_URL")
+            ?: "https://khatm.imangpt1996.chatgpt.site",
+    )
+    .get()
+    .trimEnd('/')
+
+require(khatmBaseUrl.startsWith("https://")) {
+    "KHATM_BASE_URL must start with https://"
+}
+require(!khatmBaseUrl.any(Char::isWhitespace)) {
+    "KHATM_BASE_URL must not contain spaces"
+}
 
 plugins {
     id("com.android.application")
@@ -13,8 +36,10 @@ android {
         applicationId = "com.imangpt.khatm"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "2.0.0"
+        versionCode = 3
+        versionName = "2.1.0"
+
+        buildConfigField("String", "KHATM_BASE_URL", "\"$khatmBaseUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

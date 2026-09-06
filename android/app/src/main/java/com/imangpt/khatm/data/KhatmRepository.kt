@@ -176,7 +176,7 @@ class KhatmRepository(context: Context) {
     }
 
     companion object {
-        const val BASE_URL = "https://khatm.imangpt1996.chatgpt.site"
+        val BASE_URL: String = BuildConfig.KHATM_BASE_URL.trimEnd('/')
         private const val KEY_COOKIE = "session_cookie"
         private const val KEY_STATE = "cached_state"
         private const val KEY_CATALOG = "cached_devotion_catalog_v1"

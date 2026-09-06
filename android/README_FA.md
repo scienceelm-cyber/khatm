@@ -14,7 +14,7 @@
 - اشتراک‌گذاری دعوت، حالت روشن/تیره، راست‌به‌چپ کامل و اعداد فارسی
 - پنل مدیریت نیت‌ها برای افزودن، ویرایش و بایگانی؛ رمز مدیر داخل اپ ذخیره یا در سورس قرار داده نمی‌شود
 
-## اجرا و ساخت
+## اجرا و ساخت نسخهٔ ۲.۱.۰
 
 پیش‌نیازها: JDK 17، Android SDK 37 و Android Studio سازگار با AGP 9.3.
 
@@ -29,11 +29,28 @@ cd android
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-آدرس سرویس در `KhatmRepository.BASE_URL` تعریف شده است:
+APK تحویلی یک بستهٔ کامل و قابل نصب از صفر است. آدرس پیش‌فرض سرویس:
 
 ```text
 https://khatm.imangpt1996.chatgpt.site
 ```
+
+برای اتصال اپ به هاست خودتان، فایل `khatm.local.properties.example` را با نام
+`khatm.local.properties` کپی و آدرس HTTPS خود را وارد کنید:
+
+```properties
+KHATM_BASE_URL=https://khatm.example.com
+```
+
+یا هنگام build آن را به‌صورت property بدهید:
+
+```bash
+./gradlew assembleRelease -PKHATM_BASE_URL=https://khatm.example.com
+```
+
+فایل محلی آدرس سرور در Git ثبت نمی‌شود. مقدار باید HTTPS باشد و رمز مدیریت هرگز
+نباید داخل URL، فایل تنظیمات Android یا APK قرار گیرد. راهنمای بسیار کامل نصب سایت،
+ساخت APK و مدیریت نیت‌ها در `../SELF_HOSTING_FA.md` است.
 
 ## ساختار
 

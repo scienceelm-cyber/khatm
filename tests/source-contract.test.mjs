@@ -70,3 +70,22 @@ test("keeps intention management protected and non-destructive", async () => {
   assert.match(admin, /SET active = 0/);
   assert.match(database, /ADMIN_TOKEN/);
 });
+
+test("supports a private Cloudflare deployment and a configurable Android API", async () => {
+  const [vite, template, helper, gradle, repository, gitignore] = await Promise.all([
+    read("vite.config.ts"),
+    read("wrangler.selfhost.example.jsonc"),
+    read("scripts/selfhost.mjs"),
+    read("android/app/build.gradle.kts"),
+    read("android/app/src/main/java/com/imangpt/khatm/data/KhatmRepository.kt"),
+    read(".gitignore"),
+  ]);
+  assert.match(vite, /KHATM_SELF_HOST/);
+  assert.match(vite, /configPath: "\.\/wrangler\.jsonc"/);
+  assert.match(template, /PASTE_DATABASE_ID_HERE/);
+  assert.match(template, /"binding": "DB"/);
+  assert.match(helper, /ADMIN_TOKEN/);
+  assert.match(gradle, /KHATM_BASE_URL/);
+  assert.match(repository, /BuildConfig\.KHATM_BASE_URL/);
+  assert.match(gitignore, /\/wrangler\.jsonc/);
+});
