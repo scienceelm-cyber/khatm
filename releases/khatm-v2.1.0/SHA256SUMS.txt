@@ -1,0 +1,8 @@
+0fea6280f756b88e294ee56e31e63a6b42983488b4f40970bafcb665abf48ca5  Khatm-Android-v2.1.0_for-Khatm-Site-v2.1.0_FULL.apk
+
+# Release ID: khatm-v2.1.0
+# Site version: 2.1.0
+# Android versionName: 2.1.0
+# Android versionCode: 3
+# Source commit: a2ca4e99f9e37786d4f2199db8b4c36b0ebbced4
+# Signing certificate SHA-256: 08b74fd8a857acfefb70fde94b26af400fc0e820658d871b33259a9871129c14
